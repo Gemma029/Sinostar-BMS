@@ -615,9 +615,24 @@
                 <div class="card-header">
                     <h2 class="card-title">🧮 工具</h2>
                 </div>
-                <a href="http://www.huaxingtin.com/calculator" target="_blank" class="btn btn-primary btn-block">
-                    🔗 华星计算器（锡贸易）
-                </a>
+                <div class="mb-4">
+                    <button onclick="toggleCalculator()" class="btn btn-primary btn-block">
+                        📐 打开/关闭华星计算器
+                    </button>
+                </div>
+                <!-- 华星计算器 iframe 嵌入 -->
+                <div id="calculator-container" class="hidden">
+                    <iframe 
+                        src="https://gemma029.github.io/Sinostar-Calculator-Sn-V2.0/" 
+                        style="width: 100%; height: 600px; border: 1px solid #E5E7EB; border-radius: 8px;"
+                        title="华星计算器 - 锡含量计算"
+                        sandbox="allow-scripts allow-same-origin allow-forms"
+                    ></iframe>
+                    <p class="text-xs text-text-light mt-2 text-center">
+                        💡 提示：计算器已嵌入页面，可直接使用。如需全屏体验，可点击 
+                        <a href="https://gemma029.github.io/Sinostar-Calculator-Sn-V2.0/" target="_blank" class="text-primary underline">在新标签页打开</a>
+                    </p>
+                </div>
             </div>
             
         </section>
@@ -4717,6 +4732,23 @@
             }
         };
         
+        // ==================== 计算器切换函数 ====================
+        /**
+         * 切换计算器显示状态
+         */
+        function toggleCalculator() {
+            const container = document.getElementById('calculator-container');
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                // 滚动到计算器位置
+                setTimeout(() => {
+                    container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+        
         // ==================== 数字格式化工具函数 ====================
         /**
          * 格式化数字为大单位显示（万/亿）
@@ -4772,6 +4804,19 @@
                 storage.set('permissions', permissions);
                 
                 console.log('默认管理员账户已创建：admin / admin123');
+            }
+            
+            // 页面加载时检查当前用户权限，如果不是管理员则隐藏权限管理导航
+            const currentUser = app.getCurrentUser();
+            if (!currentUser || !currentUser.isAdmin) {
+                const permissionNav = document.getElementById('nav-permission');
+                if (permissionNav) {
+                    permissionNav.classList.add('hidden');
+                }
+                const permissionPage = document.getElementById('page-permission');
+                if (permissionPage) {
+                    permissionPage.classList.add('hidden');
+                }
             }
             
             // 初始化首页数据
