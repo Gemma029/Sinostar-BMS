@@ -4441,13 +4441,14 @@
                 event.preventDefault();
                 
                 const editId = document.getElementById('user-edit-id').value;
-                const username = document.getElementById('user-username').value;
+                const username = document.getElementById('user-username').value.trim();
                 const password = document.getElementById('user-password').value;
-                const name = document.getElementById('user-name').value;
-                const phone = document.getElementById('user-phone').value;
+                const name = document.getElementById('user-name').value.trim();
+                const phone = document.getElementById('user-phone').value.trim();
                 const isAdmin = document.getElementById('user-is-admin').checked;
                 const statusSelect = document.getElementById('user-status').value;
                 
+                // 获取当前用户列表
                 const users = storage.get('users', []);
                 
                 if (editId) {
@@ -4485,7 +4486,9 @@
                     }
                 } else {
                     // 新增模式（注册新用户）
-                    if (users.find(u => u.username === username)) {
+                    // 检查用户名是否已存在（不区分大小写）
+                    const existingUser = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+                    if (existingUser) {
                         alert('用户名已存在！');
                         return;
                     }
@@ -4506,8 +4509,29 @@
                     };
                     users.push(newUser);
                     
-                    // 保存用户数组到 localStorage
-                    storage.set('users', users);
+                    // ✅ 修复：确保正确保存到 localStorage
+                    try {
+                        // 直接调用 localStorage.setItem，避免 storage 工具的潜在问题
+                        localStorage.setItem('users', JSON.stringify(users));
+                        
+                        // 验证保存是否成功
+                        const savedUsersRaw = localStorage.getItem('users');
+                        const savedUsers = savedUsersRaw ? JSON.parse(savedUsersRaw) : [];
+                        console.log('✅ 注册成功 - 保存后的用户列表:', savedUsers);
+                        
+                        const savedNewUser = savedUsers.find(u => u.username === username);
+                        if (!savedNewUser) {
+                            console.error('❌ 保存失败：新用户未找到');
+                            alert('⚠️ 保存失败：新用户未成功写入 localStorage，请检查浏览器存储权限');
+                            return;
+                        }
+                        
+                        console.log('✅ 验证通过 - 新用户已保存:', savedNewUser);
+                    } catch (e) {
+                        console.error('❌ 保存用户失败:', e);
+                        alert('⚠️ 保存失败：' + e.message);
+                        return;
+                    }
                     
                     // 为新用户初始化默认权限（所有模块默认为 'full'，可查看可编辑）
                     const permissions = storage.get('permissions', {});
@@ -4525,9 +4549,23 @@
                     }
                     
                     this.logAction('新增', '用户', `新增用户 ${username}`, name);
+                    
+                    // ✅ 修复：注册成功后提示并跳转到登录页面
+                    this.closeUserModal();
+                    this.renderUserList();
+                    alert('✅ 注册成功！请使用新账户登录。');
+                    
+                    // 关闭登录模态框（如果打开），触发重新登录
+                    document.getElementById('login-modal').classList.add('active');
+                    document.getElementById('main-nav').classList.add('hidden');
+                    
+                    // 清空登录表单并聚焦到用户名输入框
+                    document.getElementById('login-username').value = username;
+                    document.getElementById('login-password').value = '';
+                    document.getElementById('login-username').focus();
+                    
+                    return;
                 }
-                
-                storage.set('users', users);
                 this.closeUserModal();
                 this.renderUserList();
                 alert('用户保存成功！');
