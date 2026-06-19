@@ -1721,6 +1721,7 @@
             
             /**
              * 处理登录
+             * ✅ 修复：从 localStorage 读取 users 数组，遍历匹配用户名和密码，检查 status 是否为 active
              * @param {Event} event - 表单提交事件
              */
             handleLogin(event) {
@@ -1729,28 +1730,31 @@
                 const username = document.getElementById('login-username').value;
                 const password = document.getElementById('login-password').value;
                 
-                // 从 localStorage 获取所有用户列表
+                // ✅ 修复：从 localStorage 读取 users 数组
                 const users = storage.get('users', []);
                 
-                // 根据输入的用户名查找用户
-                const user = users.find(u => u.username === username);
+                // ✅ 修复：遍历 users 数组，匹配用户名和密码
+                const user = users.find(u => {
+                    // 检查用户名是否匹配
+                    if (u.username !== username) return false;
+                    // 检查密码是否匹配
+                    if (u.password !== password) return false;
+                    // ✅ 修复：检查 status 是否为 'active'（同时兼容 'enabled'）
+                    const isActive = u.status === 'active' || u.status === 'enabled';
+                    return isActive;
+                });
                 
-                // 如果找不到用户，提示"用户名不存在"
+                // 如果找不到用户或用户未激活，提示错误
                 if (!user) {
-                    alert('用户名不存在！');
-                    return;
-                }
-                
-                // 检查密码是否匹配
-                if (user.password !== password) {
-                    alert('密码错误！');
-                    return;
-                }
-                
-                // 检查账户状态是否为 active/enabled/启用
-                const isActive = user.status === 'active' || user.status === 'enabled' || user.status === '启用';
-                if (!isActive) {
-                    alert('账户已被禁用，请联系管理员！');
+                    // 先检查是否存在该用户名的记录（无论状态如何）
+                    const existingUser = users.find(u => u.username === username);
+                    if (existingUser) {
+                        // 用户存在但状态不是 active
+                        alert('账户已被禁用，请联系管理员！');
+                    } else {
+                        // 用户名不存在
+                        alert('用户名或密码错误！');
+                    }
                     return;
                 }
                 
@@ -4430,7 +4434,8 @@
             },
             
             /**
-             * 处理用户提交
+             * 处理用户提交（注册功能）
+             * ✅ 修复：新用户以 {username, password, status: 'active'} 格式保存到 localStorage
              */
             handleUserSubmit(event) {
                 event.preventDefault();
@@ -4441,7 +4446,7 @@
                 const name = document.getElementById('user-name').value;
                 const phone = document.getElementById('user-phone').value;
                 const isAdmin = document.getElementById('user-is-admin').checked;
-                const status = document.getElementById('user-status').value;
+                const statusSelect = document.getElementById('user-status').value;
                 
                 const users = storage.get('users', []);
                 
@@ -4453,7 +4458,8 @@
                         users[index].name = name;
                         users[index].phone = phone;
                         users[index].isAdmin = isAdmin;
-                        users[index].status = status;
+                        // 保持 status 字段兼容性，支持 'active' 和 'enabled'
+                        users[index].status = statusSelect === 'enabled' ? 'active' : statusSelect;
                         if (password) {
                             users[index].password = password;
                         }
@@ -4478,15 +4484,16 @@
                         this.logAction('编辑', '用户', `编辑用户 ${username} 的信息`, name);
                     }
                 } else {
-                    // 新增模式
+                    // 新增模式（注册新用户）
                     if (users.find(u => u.username === username)) {
                         alert('用户名已存在！');
                         return;
                     }
                     
-                    // 新用户默认状态为 enabled（启用），确保可以立即登录
-                    const newUserStatus = status || 'enabled';
+                    // ✅ 修复：新用户默认状态为 'active'，确保可以立即登录
+                    const newUserStatus = 'active';
                     
+                    // ✅ 修复：用户对象格式为 {username, password, status: 'active'}
                     const newUser = {
                         id: generateId(),
                         username: username,
@@ -4494,10 +4501,13 @@
                         name: name,
                         phone: phone,
                         isAdmin: isAdmin,
-                        status: newUserStatus,  // 默认为 enabled，不是 disabled
+                        status: newUserStatus,  // 固定为 'active'
                         createdAt: new Date().toISOString()
                     };
                     users.push(newUser);
+                    
+                    // 保存用户数组到 localStorage
+                    storage.set('users', users);
                     
                     // 为新用户初始化默认权限（所有模块默认为 'full'，可查看可编辑）
                     const permissions = storage.get('permissions', {});
