@@ -1613,6 +1613,17 @@
              * @param {string} pageName - 页面名称
              */
             navigate(pageName) {
+                // 权限管理页面特殊处理：只有管理员可以访问
+                if (pageName === 'permission') {
+                    const user = this.getCurrentUser();
+                    if (!user || !user.isAdmin) {
+                        alert('⚠️ 权限不足：只有管理员可以访问权限管理模块！');
+                        // 返回首页
+                        this.navigate('home');
+                        return;
+                    }
+                }
+                
                 // 隐藏所有页面
                 document.querySelectorAll('.page').forEach(page => {
                     page.classList.remove('active');
