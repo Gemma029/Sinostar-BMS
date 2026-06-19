@@ -9,10 +9,10 @@
     <title>华星掌上云 - 业务管理系统</title>
     
     <!-- TailwindCSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.tailwindcss.com?v=20260619"></script>
     
     <!-- ECharts 图表库 CDN -->
-    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js"></script>
+    <script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.4.3/echarts.min.js?v=20260619"></script>
     
     <!-- Google Fonts - Fira Code / Fira Sans -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1729,11 +1729,28 @@
                 const username = document.getElementById('login-username').value;
                 const password = document.getElementById('login-password').value;
                 
+                // 从 localStorage 获取所有用户列表
                 const users = storage.get('users', []);
-                const user = users.find(u => u.username === username && u.password === password && (u.status === 'enabled' || u.status === '启用'));
                 
+                // 根据输入的用户名查找用户
+                const user = users.find(u => u.username === username);
+                
+                // 如果找不到用户，提示"用户名不存在"
                 if (!user) {
-                    alert('用户名或密码错误，或账户已被禁用！');
+                    alert('用户名不存在！');
+                    return;
+                }
+                
+                // 检查密码是否匹配
+                if (user.password !== password) {
+                    alert('密码错误！');
+                    return;
+                }
+                
+                // 检查账户状态是否为 active/enabled/启用
+                const isActive = user.status === 'active' || user.status === 'enabled' || user.status === '启用';
+                if (!isActive) {
+                    alert('账户已被禁用，请联系管理员！');
                     return;
                 }
                 
@@ -4467,6 +4484,9 @@
                         return;
                     }
                     
+                    // 新用户默认状态为 enabled（启用），确保可以立即登录
+                    const newUserStatus = status || 'enabled';
+                    
                     const newUser = {
                         id: generateId(),
                         username: username,
@@ -4474,7 +4494,7 @@
                         name: name,
                         phone: phone,
                         isAdmin: isAdmin,
-                        status: status,
+                        status: newUserStatus,  // 默认为 enabled，不是 disabled
                         createdAt: new Date().toISOString()
                     };
                     users.push(newUser);
