@@ -1711,6 +1711,11 @@
                     return;
                 }
                 
+                // 确保用户对象包含 isAdmin 属性（兼容旧数据）
+                if (user.isAdmin === undefined) {
+                    user.isAdmin = false;
+                }
+                
                 // 保存当前用户到 sessionStorage
                 sessionStorage.setItem('currentUser', JSON.stringify(user));
                 
@@ -1718,10 +1723,10 @@
                 document.getElementById('login-modal').classList.remove('active');
                 document.getElementById('main-nav').classList.remove('hidden');
                 
-                // 初始化权限管理模块
-                permissionModule.init();
+                // 应用权限控制，隐藏无权限的导航项
+                this.applyPermissionUI();
                 
-                // 刷新页面数据
+                // 刷新页面数据（带权限控制）
                 this.refreshPageData('home');
                 
                 console.log(`用户 ${user.username} 登录成功`);
@@ -1753,7 +1758,7 @@
             /**
              * 检查用户是否有模块访问权限
              * @param {string} moduleName - 模块名称
-             * @returns {string} 权限级别：none/view/edit/full
+             * @returns {string} 权限级别：none(不可查看不可编辑)/view(仅查看)/view_no_edit(可查看不可编辑)/full(可查看可编辑)
              */
             checkPermission(moduleName) {
                 const user = this.getCurrentUser();
@@ -1763,13 +1768,15 @@
                 if (user.isAdmin) return 'full';
                 
                 const permissions = storage.get('permissions', {});
-                const userPermissions = permissions[user.username] || {};
+                // 使用 userId 作为权限配置的键名
+                const userPermissions = permissions[user.id] || {};
                 
-                return userPermissions[moduleName] || 'none';
+                // 默认权限：如果未配置，普通用户默认为 'full'（兼容旧数据）
+                return userPermissions[moduleName] || 'full';
             },
             
             /**
-             * 根据权限控制 UI 显示
+             * 根据权限控制 UI 显示（单个模块）
              * @param {string} moduleName - 模块名称
              */
             applyPermission(moduleName) {
@@ -1785,6 +1792,97 @@
                 }
                 
                 return permission;
+            },
+            
+            /**
+             * 应用所有权限控制到 UI（登录后调用）
+             */
+            applyPermissionUI() {
+                const user = this.getCurrentUser();
+                if (!user) return;
+                
+                // 管理员显示所有模块
+                if (user.isAdmin) {
+                    document.querySelectorAll('.nav-item').forEach(item => {
+                        item.classList.remove('hidden');
+                    });
+                    document.querySelectorAll('.page').forEach(page => {
+                        page.classList.remove('hidden');
+                    });
+                    return;
+                }
+                
+                // 非管理员：隐藏权限管理模块
+                const permissionNav = document.getElementById('nav-permission');
+                if (permissionNav) {
+                    permissionNav.classList.add('hidden');
+                }
+                const permissionPage = document.getElementById('page-permission');
+                if (permissionPage) {
+                    permissionPage.classList.add('hidden');
+                }
+                
+                // 检查其他模块的权限配置
+                const modules = ['sample', 'contract', 'logistics', 'payment', 'report', 'customer'];
+                const moduleNames = {
+                    'sample': '样品管理',
+                    'contract': '合同管理',
+                    'logistics': '物流管理',
+                    'payment': '进程管理',
+                    'report': '统计报表',
+                    'customer': '客户维护'
+                };
+                
+                modules.forEach(moduleKey => {
+                    const moduleName = moduleNames[moduleKey];
+                    const permission = this.checkPermission(moduleName);
+                    const navItem = document.querySelector(`.nav-item[data-page="${moduleKey}"]`);
+                    const page = document.getElementById(`page-${moduleKey}`);
+                    
+                    if (permission === 'none') {
+                        // 完全隐藏
+                        if (navItem) navItem.classList.add('hidden');
+                        if (page) page.classList.add('hidden');
+                    } else if (permission === 'view' || permission === 'view_no_edit') {
+                        // 仅查看模式：显示导航和页面，但隐藏所有编辑按钮和表单提交按钮
+                        if (navItem) navItem.classList.remove('hidden');
+                        if (page) page.classList.remove('hidden');
+                        this.applyViewOnlyMode(moduleKey);
+                    } else {
+                        // 完整权限：显示所有内容
+                        if (navItem) navItem.classList.remove('hidden');
+                        if (page) page.classList.remove('hidden');
+                    }
+                });
+            },
+            
+            /**
+             * 应用只读模式到指定模块（隐藏编辑按钮和表单）
+             * @param {string} moduleKey - 模块键名
+             */
+            applyViewOnlyMode(moduleKey) {
+                const page = document.getElementById(`page-${moduleKey}`);
+                if (!page) return;
+                
+                // 隐藏所有编辑按钮
+                page.querySelectorAll('.btn-sm.btn-secondary, .btn-sm.btn-danger, .btn-sm[style*="background: #3B82F6"], .btn-sm[style*="background: #EF4444"]').forEach(btn => {
+                    btn.classList.add('hidden');
+                });
+                
+                // 隐藏表单提交按钮
+                page.querySelectorAll('form button[type="submit"]').forEach(btn => {
+                    btn.classList.add('hidden');
+                });
+                
+                // 隐藏文件上传输入框
+                page.querySelectorAll('input[type="file"]').forEach(input => {
+                    input.closest('.form-group')?.classList.add('hidden');
+                });
+                
+                // 隐藏取消编辑按钮
+                page.querySelectorAll('[id$="-cancel-btn"]').forEach(btn => {
+                    btn.classList.add('hidden');
+                });
             },
             
             /**
@@ -4308,6 +4406,7 @@
                     // 编辑模式
                     const index = users.findIndex(u => u.id === editId);
                     if (index !== -1) {
+                        const oldIsAdmin = users[index].isAdmin;
                         users[index].name = name;
                         users[index].phone = phone;
                         users[index].isAdmin = isAdmin;
@@ -4315,6 +4414,24 @@
                         if (password) {
                             users[index].password = password;
                         }
+                        
+                        // 如果从非管理员变为管理员，确保有权限管理模块权限
+                        if (isAdmin && !oldIsAdmin) {
+                            const permissions = storage.get('permissions', {});
+                            if (permissions[editId]) {
+                                permissions[editId]['权限管理'] = 'full';
+                                storage.set('permissions', permissions);
+                            }
+                        }
+                        // 如果从管理员变为非管理员，移除权限管理模块权限
+                        if (!isAdmin && oldIsAdmin) {
+                            const permissions = storage.get('permissions', {});
+                            if (permissions[editId]) {
+                                permissions[editId]['权限管理'] = 'none';
+                                storage.set('permissions', permissions);
+                            }
+                        }
+                        
                         this.logAction('编辑', '用户', `编辑用户 ${username} 的信息`, name);
                     }
                 } else {
@@ -4335,6 +4452,22 @@
                         createdAt: new Date().toISOString()
                     };
                     users.push(newUser);
+                    
+                    // 为新用户初始化默认权限（所有模块默认为 'full'，可查看可编辑）
+                    const permissions = storage.get('permissions', {});
+                    if (!permissions[newUser.id]) {
+                        permissions[newUser.id] = {
+                            '样品管理': 'full',
+                            '合同管理': 'full',
+                            '物流管理': 'full',
+                            '进程管理': 'full',
+                            '统计报表': 'full',
+                            '客户维护': 'full',
+                            '权限管理': isAdmin ? 'full' : 'none'  // 只有管理员可访问权限管理模块
+                        };
+                        storage.set('permissions', permissions);
+                    }
+                    
                     this.logAction('新增', '用户', `新增用户 ${username}`, name);
                 }
                 
@@ -4437,7 +4570,10 @@
                 storage.set('permissions', permissions);
                 
                 this.logAction('配置', '权限', `为用户 ${user?.username || ''} 配置模块权限`, user?.name || '');
-                alert('权限配置保存成功！');
+                alert('权限配置保存成功！\n\n提示：权限变更将在用户下次登录或刷新页面后生效。');
+                
+                // 重新加载用户列表以反映权限状态
+                this.renderUserList();
             },
             
             /**
